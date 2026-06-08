@@ -1,16 +1,15 @@
 /**
  * plugins/iqc.js
- * Fitur IQC (iPhone / iOS Quote Chat) — versi FULL REACTION.
+ * Fitur IQC (iPhone / iOS Quote Chat) — Siputzx API.
  *
  * Perintah: .iqc <teks>  ATAU reply sebuah pesan lalu ketik .iqc
  *
- * Berbeda dari versi awal (yang hanya bubble polos), versi ini memakai
- * API yang menghasilkan screenshot iOS LENGKAP: baris reaksi emoji
- * (👍 ❤️ 😂 😮 😢 🙏) dan menu konteks (Balas, Teruskan, Beri Bintang, dll).
+ * Endpoint utama (sesuai instruksi):
+ *   https://brat.siputzx.my.id/iphone-quoted?text=<teks>
+ * Hasil: screenshot chat iOS lengkap dengan baris reaksi emoji
+ *   (👍 ❤️ 😂 😮 😢 🙏) dan deretan menu konteks di bawahnya.
  *
- * Provider dikonfigurasi di config.iqc:
- *   - 'lolhuman' : https://api.lolhuman.xyz/api/iphonequote (butuh apikey)
- *   - 'custom'   : config.iqc.customUrl dengan placeholder {text} & {apikey}
+ * Override opsional via config.iqc.customUrl (placeholder {text}).
  *
  * LIMIT: dipotong (-1) HANYA jika gambar berhasil dibuat & dikirim.
  * Bila API down/gagal, beri pesan ramah & limit TIDAK dipotong.
@@ -18,6 +17,13 @@
 
 const axios = require('axios');
 const config = require('../config');
+
+// Endpoint default Siputzx (tidak butuh apikey)
+const DEFAULT_ENDPOINT = 'https://brat.siputzx.my.id/iphone-quoted';
+
+// User-Agent gaya browser agar tidak ditolak (403) oleh server API
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
 
 /** Ambil teks dari pesan yang di-reply (quoted), bila ada. */
 function getQuotedText(msg) {
@@ -32,23 +38,16 @@ function getQuotedText(msg) {
   );
 }
 
-/** Bangun URL request sesuai provider yang dipilih di config. */
+/** Bangun URL request. Default: Siputzx; bisa di-override via config.iqc.customUrl. */
 function buildRequestUrl(text) {
-  const { provider, apikey, customUrl } = config.iqc || {};
   const enc = encodeURIComponent(text);
-
-  if (provider === 'custom' && customUrl) {
-    return customUrl.replace('{text}', enc).replace('{apikey}', encodeURIComponent(apikey || ''));
+  const custom = config.iqc?.customUrl;
+  if (custom) {
+    return custom.includes('{text}')
+      ? custom.replace('{text}', enc)
+      : `${custom}${custom.includes('?') ? '&' : '?'}text=${enc}`;
   }
-
-  // Default: lolhuman (endpoint iphonequote -> screenshot reaksi iOS lengkap)
-  if (!apikey) {
-    throw new Error(
-      'API key IQC belum diisi. Set config.iqc.apikey (provider lolhuman) ' +
-        'atau pakai provider "custom" + customUrl.'
-    );
-  }
-  return `https://api.lolhuman.xyz/api/iphonequote?apikey=${encodeURIComponent(apikey)}&text=${enc}`;
+  return `${DEFAULT_ENDPOINT}?text=${enc}`;
 }
 
 module.exports = {
@@ -76,7 +75,11 @@ module.exports = {
       const url = buildRequestUrl(content);
 
       // Minta sebagai binary; deteksi apakah respons gambar atau JSON {url}
-      const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+      const res = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: 45000,
+        headers: { 'User-Agent': UA, Accept: 'image/*,application/json' },
+      });
       const contentType = String(res.headers['content-type'] || '');
 
       let imageBuffer = null;
@@ -84,7 +87,7 @@ module.exports = {
       if (contentType.startsWith('image/')) {
         imageBuffer = Buffer.from(res.data);
       } else {
-        // Coba parse JSON (provider yang mengembalikan { result/url })
+        // Sebagian API mengembalikan JSON { url } / { result }
         let json = {};
         try {
           json = JSON.parse(Buffer.from(res.data).toString('utf-8'));
@@ -95,7 +98,11 @@ module.exports = {
         if (!imgUrl || typeof imgUrl !== 'string') {
           throw new Error(json.message || 'API tidak mengembalikan gambar');
         }
-        const img = await axios.get(imgUrl, { responseType: 'arraybuffer', timeout: 30000 });
+        const img = await axios.get(imgUrl, {
+          responseType: 'arraybuffer',
+          timeout: 45000,
+          headers: { 'User-Agent': UA },
+        });
         imageBuffer = Buffer.from(img.data);
       }
 
@@ -112,7 +119,7 @@ module.exports = {
     } catch (e) {
       console.error('[IQC] gagal:', e.message);
       await reply(
-        `⚠️ Maaf, gagal membuat IQC.\n_Alasan: ${e.message}_\n\nPastikan *config.iqc.apikey* sudah diisi & server API aktif. Limit kamu *tidak* dipotong.`
+        `⚠️ Maaf, gagal membuat IQC.\n_Alasan: ${e.message}_\n\nServer API mungkin sedang sibuk. Coba lagi nanti. Limit kamu *tidak* dipotong.`
       );
     }
   },

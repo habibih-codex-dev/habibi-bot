@@ -76,6 +76,8 @@ module.exports = {
 │ • ${p}antilink on/off
 │ • ${p}tagall / ${p}hidetag
 │ • ${p}del (reply)
+│ • ${p}open / ${p}close
+│ • ${p}upswgc <teks>/reply
 ╰───────────────
 ${
   isOwner
@@ -86,6 +88,7 @@ ${
 │ • ${p}addlimit <nomor> <jumlah>
 │ • ${p}addsaldo @user <jumlah>
 │ • ${p}minussaldo @user <jumlah>
+│ • ${p}add <nomor>
 │ • ${p}bc <teks promosi>
 ╰───────────────`
     : ''
