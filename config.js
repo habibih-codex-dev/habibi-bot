@@ -30,6 +30,12 @@ const config = {
   // Prefix perintah. Bisa multi-prefix.
   prefix: ['.', '!', '/', '#'],
 
+  // ====================== MEDIA MENU ======================
+  // Link gambar/video untuk thumbnail menu (.menu).
+  // Boleh .jpg/.png (dikirim sebagai image) atau .mp4 (dikirim sebagai video).
+  // Kosongkan ('') jika ingin menu tampil sebagai teks biasa.
+  thumbMenu: 'https://files.catbox.moe/8z7g0k.jpg',
+
   // ====================== LIMIT & PREMIUM ======================
   // Limit harian default untuk user biasa
   defaultLimit: 25,
@@ -96,3 +102,6 @@ const config = {
 };
 
 module.exports = config;
+
+// Ekspos sebagai variabel global agar mudah diakses lintas-file (opsional).
+global.thumbMenu = config.thumbMenu;
