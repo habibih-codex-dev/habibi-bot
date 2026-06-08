@@ -34,7 +34,9 @@ const config = {
   // Link gambar/video untuk thumbnail menu (.menu).
   // Boleh .jpg/.png (dikirim sebagai image) atau .mp4 (dikirim sebagai video).
   // Kosongkan ('') jika ingin menu tampil sebagai teks biasa.
-  thumbMenu: 'https://files.catbox.moe/8z7g0k.jpg',
+  // GANTI dengan link media milikmu sendiri (catbox/telegra.ph) bila perlu.
+  // Jika link mati/404, menu tetap tampil sebagai teks (sudah ditangani di menu.js).
+  thumbMenu: 'https://files.catbox.moe/k4w3qy.jpg',
 
   // ====================== LIMIT & PREMIUM ======================
   // Limit harian default untuk user biasa

@@ -5,7 +5,7 @@
  * Perintah: .iqc <teks>  ATAU reply sebuah pesan lalu ketik .iqc
  *
  * Endpoint utama (sesuai instruksi):
- *   https://brat.siputzx.my.id/iphone-quoted?text=<teks>
+ *   https://brat.siputzx.my.id/iphone-quoted?messageText=<teks>
  * Hasil: screenshot chat iOS lengkap dengan baris reaksi emoji
  *   (👍 ❤️ 😂 😮 😢 🙏) dan deretan menu konteks di bawahnya.
  *
@@ -64,20 +64,19 @@ async function extractImage(res) {
 }
 
 /**
- * Ambil gambar IQC dari API.
- * Penyebab error 500 biasanya struktur parameter yang salah, jadi kita
- * coba GET (?text=) lebih dulu, lalu fallback POST (JSON {text}) bila gagal.
- * Teks SELALU di-encode dengan benar (encodeURIComponent untuk GET,
- * body JSON untuk POST).
+ * Ambil gambar IQC dari API Siputzx.
+ * Parameter yang BENAR adalah `messageText` (bukan `text`) -> ini penyebab
+ * HTTP 500 sebelumnya. Teks SELALU di-encode (encodeURIComponent untuk GET,
+ * body JSON untuk POST). Coba GET dulu, fallback POST bila gagal.
  */
 async function fetchIqcImage(rawText) {
   const base = config.iqc?.customUrl || DEFAULT_ENDPOINT;
   const sep = base.includes('?') ? '&' : '?';
   const getUrl = base.includes('{text}')
     ? base.replace('{text}', encodeURIComponent(rawText))
-    : `${base}${sep}text=${encodeURIComponent(rawText)}`;
+    : `${base}${sep}messageText=${encodeURIComponent(rawText)}`;
 
-  // 1) Coba GET ?text=
+  // 1) Coba GET ?messageText=
   try {
     const res = await axios.get(getUrl, {
       responseType: 'arraybuffer',
@@ -89,11 +88,11 @@ async function fetchIqcImage(rawText) {
     const code = errGet.response?.status;
     console.warn(`[IQC] GET gagal (${code || errGet.message}), coba POST...`);
 
-    // 2) Fallback POST JSON { text }
+    // 2) Fallback POST JSON { messageText }
     const postBase = base.split('?')[0];
     const res = await axios.post(
       postBase,
-      { text: rawText },
+      { messageText: rawText },
       {
         responseType: 'arraybuffer',
         timeout: 45000,

@@ -40,12 +40,20 @@ async function getMenuMedia(url) {
   if (mediaCache && cachedUrl === url) {
     return { buffer: mediaCache, type: cachedType };
   }
-  const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
-  mediaCache = Buffer.from(res.data);
-  cachedUrl = url;
-  cachedType = detectType(url);
-  console.log('[MENU] Media menu diunduh & disimpan ke cache.');
-  return { buffer: mediaCache, type: cachedType };
+  // Unduh sekali; jika GAGAL (mis. 404/link mati), JANGAN lempar error —
+  // kembalikan null agar menu tetap tampil sebagai teks/tanpa media.
+  try {
+    const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
+    mediaCache = Buffer.from(res.data);
+    cachedUrl = url;
+    cachedType = detectType(url);
+    console.log('[MENU] Media menu diunduh & disimpan ke cache.');
+    return { buffer: mediaCache, type: cachedType };
+  } catch (e) {
+    const code = e.response?.status ? ` (HTTP ${e.response.status})` : '';
+    console.error(`[MENU] Gagal unduh media${code}: ${e.message} — menu tampil tanpa media.`);
+    return null;
+  }
 }
 
 /** Susun teks lengkap daftar fitur (dipakai sebagai body interactive & fallback caption). */
