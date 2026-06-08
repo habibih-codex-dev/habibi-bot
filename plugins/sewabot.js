@@ -38,26 +38,79 @@ module.exports = {
     const { conn, from, command, text, reply, isGroup, isOwner, usedPrefix } = ctx;
 
     try {
-      // ==================== KATALOG (semua user) ====================
+      // ==================== .sewabot / .sewa ====================
       if (command === 'sewabot' || command === 'sewa') {
-        const adminNomor = (config.owner && config.owner[0]) || 'owner';
-        const teks =
-          `╭━━━〔 *SEWA BOT ${config.storeName.toUpperCase()}* 〕━━━⊷\n` +
-          `┃ Jadikan grupmu lebih hidup dengan ${config.botName}!\n` +
-          `┃\n` +
-          `┃ 💰 *DAFTAR HARGA*\n` +
-          `┃ • 7 Hari   : Rp5.000\n` +
-          `┃ • 30 Hari  : Rp15.000\n` +
-          `┃ • 90 Hari  : Rp35.000\n` +
-          `┃ • Permanen : Rp100.000\n` +
-          `┃\n` +
-          `┃ ✨ Fitur: downloader, sticker, islami,\n` +
-          `┃    antilink, auto-adzan, dll.\n` +
-          `┃\n` +
-          `┃ 📲 *Order:* wa.me/${adminNomor}\n` +
-          `┃ 👤 Admin: ${config.ownerName}\n` +
-          `╰━━━━━━━━━━━━━━━⊷`;
-        return reply(teks);
+        const params = (text || '').trim();
+
+        // ---- TANPA parameter -> KATALOG HARGA (semua user) ----
+        if (!params) {
+          const adminNomor = (config.owner && config.owner[0]) || 'owner';
+          const katalog =
+            `👋 *HALO! MAU SEWA BOT UNTUK GRUP KAMU?*\n\n` +
+            `Berikut Paket Sewa Bot Resmi ${config.storeName} & ${config.cloudName}:\n` +
+            `• 1 Hari  : Rp 3.000\n` +
+            `• 3 Hari  : Rp 5.000\n` +
+            `• 7 Hari  : Rp 10.000\n` +
+            `• 30 Hari : Rp 25.000\n` +
+            `• Permanen: Rp 50.000\n\n` +
+            `⚡ *Keuntungan Sewa Bot:*\n` +
+            `- Fitur AI Assistant (.ai) 24 Jam\n` +
+            `- Downloader lengkap (TikTok, IG, FB, Spotify)\n` +
+            `- Fitur Group Management (Open/Close, Kick, Add)\n` +
+            `- Fitur Islami (Auto Jadwal Sholat)\n\n` +
+            `Jika berminat, silakan hubungi Owner untuk proses aktivasi!\n` +
+            `📲 wa.me/${adminNomor} (${config.ownerName})`;
+          return reply(katalog);
+        }
+
+        // ---- DENGAN parameter -> KHUSUS OWNER: join via link + daftarkan sewa ----
+        if (!isOwner) return reply(config.messages.owner);
+
+        const parts = params.split(/\s+/);
+        const link = parts[0];
+        const days = parseInt(parts[1], 10);
+        const m = link.match(/chat\.whatsapp\.com\/([0-9A-Za-z-_]+)/i);
+
+        if (!m || !days || days <= 0) {
+          return reply(
+            `Format: *${usedPrefix}sewabot <link_grup> <jumlah_hari>*\n` +
+              `Contoh: *${usedPrefix}sewabot https://chat.whatsapp.com/XXXXXXXX 30*`
+          );
+        }
+
+        try {
+          // Eksekusi link invitation -> bot join grup target
+          const groupJid = await conn.groupAcceptInvite(m[1]);
+          if (!groupJid) throw new Error('Link tidak valid / sudah kedaluwarsa');
+
+          // Daftarkan masa expired ke sewa.json
+          const data = sewadb.add(groupJid, days);
+
+          // Notifikasi ke grup target (boleh gagal)
+          await conn
+            .sendMessage(groupJid, {
+              text:
+                `✅ *${config.botName} telah bergabung!*\n` +
+                `Masa sewa aktif: *${days} hari*\n` +
+                `⏳ Expired: ${fmtDate(data.expiredAt)}\n\n` +
+                `Terima kasih telah menyewa layanan ${config.storeName}!`,
+            })
+            .catch(() => {});
+
+          return reply(
+            `✅ *Berhasil join & mendaftarkan sewa!*\n` +
+              `🆔 Grup: ${groupJid}\n` +
+              `📅 Mulai   : ${fmtDate(data.joinedAt)}\n` +
+              `⏳ Expired : ${fmtDate(data.expiredAt)}\n` +
+              `📊 Total durasi: ${data.days} hari`
+          );
+        } catch (e) {
+          console.error('[SEWABOT join] gagal:', e.message);
+          return reply(
+            `⚠️ Gagal join grup via link.\n_Alasan: ${e.message}_\n\n` +
+              `Pastikan link undangan valid & bot belum berada di grup tersebut.`
+          );
+        }
       }
 
       // Perintah di bawah ini KHUSUS OWNER

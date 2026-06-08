@@ -38,16 +38,70 @@ function getQuotedText(msg) {
   );
 }
 
-/** Bangun URL request. Default: Siputzx; bisa di-override via config.iqc.customUrl. */
-function buildRequestUrl(text) {
-  const enc = encodeURIComponent(text);
-  const custom = config.iqc?.customUrl;
-  if (custom) {
-    return custom.includes('{text}')
-      ? custom.replace('{text}', enc)
-      : `${custom}${custom.includes('?') ? '&' : '?'}text=${enc}`;
+/** Ekstrak buffer gambar dari respons (image langsung atau JSON {url}). */
+async function extractImage(res) {
+  const contentType = String(res.headers['content-type'] || '');
+  if (contentType.startsWith('image/')) {
+    return Buffer.from(res.data);
   }
-  return `${DEFAULT_ENDPOINT}?text=${enc}`;
+  // Sebagian API mengembalikan JSON { url } / { result }
+  let json = {};
+  try {
+    json = JSON.parse(Buffer.from(res.data).toString('utf-8'));
+  } catch {
+    throw new Error('Format respons API tidak dikenali');
+  }
+  const imgUrl = json.result?.url || json.url || json.result;
+  if (!imgUrl || typeof imgUrl !== 'string') {
+    throw new Error(json.message || 'API tidak mengembalikan gambar');
+  }
+  const img = await axios.get(imgUrl, {
+    responseType: 'arraybuffer',
+    timeout: 45000,
+    headers: { 'User-Agent': UA },
+  });
+  return Buffer.from(img.data);
+}
+
+/**
+ * Ambil gambar IQC dari API.
+ * Penyebab error 500 biasanya struktur parameter yang salah, jadi kita
+ * coba GET (?text=) lebih dulu, lalu fallback POST (JSON {text}) bila gagal.
+ * Teks SELALU di-encode dengan benar (encodeURIComponent untuk GET,
+ * body JSON untuk POST).
+ */
+async function fetchIqcImage(rawText) {
+  const base = config.iqc?.customUrl || DEFAULT_ENDPOINT;
+  const sep = base.includes('?') ? '&' : '?';
+  const getUrl = base.includes('{text}')
+    ? base.replace('{text}', encodeURIComponent(rawText))
+    : `${base}${sep}text=${encodeURIComponent(rawText)}`;
+
+  // 1) Coba GET ?text=
+  try {
+    const res = await axios.get(getUrl, {
+      responseType: 'arraybuffer',
+      timeout: 45000,
+      headers: { 'User-Agent': UA, Accept: 'image/*,application/json' },
+    });
+    return await extractImage(res);
+  } catch (errGet) {
+    const code = errGet.response?.status;
+    console.warn(`[IQC] GET gagal (${code || errGet.message}), coba POST...`);
+
+    // 2) Fallback POST JSON { text }
+    const postBase = base.split('?')[0];
+    const res = await axios.post(
+      postBase,
+      { text: rawText },
+      {
+        responseType: 'arraybuffer',
+        timeout: 45000,
+        headers: { 'User-Agent': UA, 'Content-Type': 'application/json', Accept: 'image/*,application/json' },
+      }
+    );
+    return await extractImage(res);
+  }
 }
 
 module.exports = {
@@ -72,40 +126,7 @@ module.exports = {
     try {
       await reply(config.messages.wait);
 
-      const url = buildRequestUrl(content);
-
-      // Minta sebagai binary; deteksi apakah respons gambar atau JSON {url}
-      const res = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: 45000,
-        headers: { 'User-Agent': UA, Accept: 'image/*,application/json' },
-      });
-      const contentType = String(res.headers['content-type'] || '');
-
-      let imageBuffer = null;
-
-      if (contentType.startsWith('image/')) {
-        imageBuffer = Buffer.from(res.data);
-      } else {
-        // Sebagian API mengembalikan JSON { url } / { result }
-        let json = {};
-        try {
-          json = JSON.parse(Buffer.from(res.data).toString('utf-8'));
-        } catch {
-          throw new Error('Format respons API tidak dikenali');
-        }
-        const imgUrl = json.result?.url || json.url || json.result;
-        if (!imgUrl || typeof imgUrl !== 'string') {
-          throw new Error(json.message || 'API tidak mengembalikan gambar');
-        }
-        const img = await axios.get(imgUrl, {
-          responseType: 'arraybuffer',
-          timeout: 45000,
-          headers: { 'User-Agent': UA },
-        });
-        imageBuffer = Buffer.from(img.data);
-      }
-
+      const imageBuffer = await fetchIqcImage(content);
       if (!imageBuffer || imageBuffer.length < 100) throw new Error('Gambar kosong/tidak valid');
 
       await conn.sendMessage(
@@ -117,9 +138,10 @@ module.exports = {
       // Sukses -> potong limit
       if (!isOwner) db.useLimit(sender, 1);
     } catch (e) {
-      console.error('[IQC] gagal:', e.message);
+      const code = e.response?.status ? ` (HTTP ${e.response.status})` : '';
+      console.error('[IQC] gagal:', e.message, code);
       await reply(
-        `⚠️ Maaf, gagal membuat IQC.\n_Alasan: ${e.message}_\n\nServer API mungkin sedang sibuk. Coba lagi nanti. Limit kamu *tidak* dipotong.`
+        `⚠️ Maaf, gagal membuat IQC${code}.\n_Alasan: ${e.message}_\n\nServer API mungkin sedang sibuk/maintenance. Coba lagi nanti. Limit kamu *tidak* dipotong.`
       );
     }
   },

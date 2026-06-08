@@ -67,6 +67,7 @@ module.exports = {
 │ • ${p}menu
 │ • ${p}ping
 │ • ${p}runtime
+│ • ${p}owner
 │ • ${p}saldo / ${p}me
 │ • ${p}deposit
 │ • ${p}sewabot
@@ -114,24 +115,22 @@ module.exports = {
 │ • ${p}tagall / ${p}hidetag
 │ • ${p}del (reply)
 │ • ${p}open / ${p}close
-│ • ${p}upswgc <teks>/reply
 ╰───────────────
-${
-  isOwner
-    ? `
-╭───「 *OWNER* 」
+
+╭───「 *OWNER MENU* 」
 │ • ${p}addprem <nomor> <hari>
 │ • ${p}delprem <nomor>
 │ • ${p}addlimit <nomor> <jumlah>
 │ • ${p}addsaldo @user <jumlah>
 │ • ${p}minussaldo @user <jumlah>
 │ • ${p}add <nomor>
+│ • ${p}sewabot <link_grup> <hari>
 │ • ${p}tambahsewa <hari>
-│ • ${p}listsewa / ${p}delsewa
+│ • ${p}listsewa
+│ • ${p}delsewa
+│ • ${p}upswgc <teks>/reply
 │ • ${p}bc <teks promosi>
-╰───────────────`
-    : ''
-}
+╰───────────────
 
 _Mode bot: *${config.mode}* • Prefix:_ ${config.prefix.join(' ')}
 `.trim();
