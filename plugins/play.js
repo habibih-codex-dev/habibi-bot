@@ -14,7 +14,6 @@
  */
 
 const config = require('../config');
-const axios = require('axios');
 
 // Dependency defensif (tidak meledak bila belum di-install)
 let yts = null;
@@ -29,33 +28,6 @@ try {
   btch = require('btch-downloader');
 } catch {
   console.warn('[PLAY] Paket "btch-downloader" belum di-install (npm install btch-downloader)');
-}
-
-const UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
-
-/**
- * Tentukan mimetype audio dari URL & content-type respons.
- * Banyak scraper YouTube sebenarnya mengembalikan m4a/webm walau diberi
- * label "mp3" -> WA bilang "file audio bermasalah" karena mimetype salah.
- */
-function resolveAudioMime(url, contentType) {
-  const ct = String(contentType || '').toLowerCase();
-  const u = String(url || '').split('?')[0].toLowerCase();
-  if (ct.includes('audio/mp4') || ct.includes('audio/m4a') || u.endsWith('.m4a')) return 'audio/mp4';
-  if (ct.includes('audio/webm') || u.endsWith('.webm')) return 'audio/webm';
-  if (ct.includes('audio/ogg') || u.endsWith('.ogg') || u.endsWith('.opus')) return 'audio/ogg';
-  if (ct.includes('audio/mpeg') || u.endsWith('.mp3')) return 'audio/mpeg';
-  // Default aman untuk audio YouTube modern adalah m4a (audio/mp4)
-  return 'audio/mpeg';
-}
-
-/** Ekstensi file dari mimetype (untuk fileName). */
-function extFromMime(mime) {
-  if (mime === 'audio/mp4') return 'm4a';
-  if (mime === 'audio/webm') return 'webm';
-  if (mime === 'audio/ogg') return 'ogg';
-  return 'mp3';
 }
 
 module.exports = {
@@ -108,30 +80,16 @@ module.exports = {
       const audioUrl = res?.mp3 || res?.audio;
       if (!audioUrl) throw new Error('Gagal mengambil tautan audio');
 
-      // PENTING: unduh penuh ke Buffer dulu agar file TIDAK corrupt/0KB.
-      // Mengirim langsung { url } kadang terputus di tengah -> "file audio bermasalah".
-      const dl = await axios.get(audioUrl, {
-        responseType: 'arraybuffer',
-        timeout: 120000,
-        maxContentLength: 100 * 1024 * 1024, // 100 MB
-        headers: { 'User-Agent': UA },
-      });
-      const audioBuffer = Buffer.from(dl.data);
-      if (!audioBuffer || audioBuffer.length < 1024) {
-        throw new Error('File audio kosong/tidak lengkap');
-      }
-
-      // Tentukan mimetype sesuai format ASLI file (mp3/m4a/webm) agar bisa diputar.
-      const mimetype = resolveAudioMime(audioUrl, dl.headers['content-type']);
-      const ext = extFromMime(mimetype);
-
+      // Kirim sebagai AUDIO BIASA (BUKAN voice note): ptt:false + audio/mpeg.
+      // Mengirim via { url } membuat Baileys stream-download file penuh sehingga
+      // tidak corrupt, dan WA memutarnya sebagai file musik normal.
       await conn.sendMessage(
         from,
         {
-          audio: audioBuffer,
-          mimetype,
+          audio: { url: audioUrl },
+          mimetype: 'audio/mpeg',
           ptt: false,
-          fileName: `${video.title}.${ext}`,
+          fileName: `${video.title}.mp3`,
         },
         { quoted: fq }
       );

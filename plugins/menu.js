@@ -1,29 +1,17 @@
 /**
  * plugins/menu.js
- * Menu utama bot — INTERACTIVE MESSAGE (Native Flow / Button) ala bot premium.
+ * Menu utama bot — versi STANDAR (gambar/video + caption teks).
  *
- * Dibuat dengan merakit RAW proto langsung (tanpa fork Baileys):
- *   generateWAMessageFromContent + proto.Message.InteractiveMessage
- *   -> NativeFlowMessage dengan tombol:
- *      - quick_reply : All Menu, Sewa Bot, Owner
- *      - cta_url     : Website Store (Habibi Cloud)
- *   lalu di-relay via conn.relayMessage().
- *
- * Tetap ada sistem CACHING media (anti-download berulang) untuk header
- * gambar/video, dan FALLBACK ke kirim media+caption biasa bila perangkat
- * tidak mendukung interactive message.
+ * CATATAN: Versi Native Flow (button interaktif) DIHAPUS karena pada
+ * sebagian klien WhatsApp pesannya dibuang server (menu tidak muncul).
+ * Sekarang memakai conn.sendMessage biasa: yang penting list menu TAMPIL
+ * dan bisa dibaca. Tetap ada caching media (anti-download berulang) dan
+ * fallback ke teks murni bila media gagal/404.
  */
 
 const axios = require('axios');
-const baileys = require('@whiskeysockets/baileys');
 const config = require('../config');
 const { formatNumber } = require('../lib/functions');
-
-const {
-  generateWAMessageFromContent,
-  prepareWAMessageMedia,
-  proto,
-} = baileys;
 
 // ===================== CACHE MEDIA (module-level) =====================
 let mediaCache = null; // Buffer media yang sudah diunduh
@@ -41,7 +29,7 @@ async function getMenuMedia(url) {
     return { buffer: mediaCache, type: cachedType };
   }
   // Unduh sekali; jika GAGAL (mis. 404/link mati), JANGAN lempar error —
-  // kembalikan null agar menu tetap tampil sebagai teks/tanpa media.
+  // kembalikan null agar menu tetap tampil sebagai teks.
   try {
     const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
     mediaCache = Buffer.from(res.data);
@@ -56,9 +44,9 @@ async function getMenuMedia(url) {
   }
 }
 
-/** Susun teks lengkap daftar fitur (dipakai sebagai body interactive & fallback caption). */
+/** Susun teks lengkap daftar fitur (caption menu). */
 function buildMenuText(ctx, u) {
-  const { isOwner, usedPrefix } = ctx;
+  const { usedPrefix } = ctx;
   const p = usedPrefix;
   const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
   const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
@@ -160,116 +148,30 @@ _Mode bot: *${config.mode}* • Prefix:_ ${config.prefix.join(' ')}
 `.trim();
 }
 
-/** Bangun array tombol Native Flow (quick_reply + cta_url). */
-function buildNativeButtons(p) {
-  return [
-    {
-      name: 'quick_reply',
-      buttonParamsJson: JSON.stringify({
-        display_text: '📋 All Menu',
-        id: `${p}allmenu`,
-      }),
-    },
-    {
-      name: 'quick_reply',
-      buttonParamsJson: JSON.stringify({
-        display_text: '🛒 Sewa Bot',
-        id: `${p}sewabot`,
-      }),
-    },
-    {
-      name: 'quick_reply',
-      buttonParamsJson: JSON.stringify({
-        display_text: '👤 Owner',
-        id: `${p}owner`,
-      }),
-    },
-    {
-      name: 'cta_url',
-      buttonParamsJson: JSON.stringify({
-        display_text: '🌐 Website Store',
-        url: 'https://wa.me/' + ((config.owner && config.owner[0]) || ''),
-        merchant_url: 'https://wa.me/' + ((config.owner && config.owner[0]) || ''),
-      }),
-    },
-  ];
-}
-
 module.exports = {
   command: ['menu', 'help', 'start', 'allmenu'],
-  desc: 'Menampilkan menu utama (interactive)',
+  desc: 'Menampilkan menu utama',
   run: async (ctx) => {
-    const { conn, from, msg, reply, sender, db, usedPrefix } = ctx;
+    const { conn, from, msg, reply, sender, db } = ctx;
     const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
     const teks = buildMenuText(ctx, u);
 
-    // ---- Coba kirim sebagai INTERACTIVE MESSAGE (Native Flow) ----
+    // Kirim sebagai media (image/video) + caption. Jika media gagal -> teks murni.
     try {
-      // Siapkan header media (pakai cache) bila ada URL
-      let header = { title: '', subtitle: '', hasMediaAttachment: false };
-      const url = config.thumbMenu;
-      if (url) {
-        try {
-          const media = await getMenuMedia(url);
-          if (media) {
-            const prepared =
-              media.type === 'video'
-                ? await prepareWAMessageMedia({ video: media.buffer }, { upload: conn.waUploadToServer })
-                : await prepareWAMessageMedia({ image: media.buffer }, { upload: conn.waUploadToServer });
-            header = {
-              ...prepared,
-              title: `${config.botName}`,
-              subtitle: config.storeName,
-              hasMediaAttachment: true,
-            };
-          }
-        } catch (e) {
-          console.error('[MENU] header media gagal, lanjut tanpa media:', e.message);
-        }
-      }
-
-      const interactiveMsg = proto.Message.InteractiveMessage.create({
-        body: proto.Message.InteractiveMessage.Body.create({ text: teks }),
-        footer: proto.Message.InteractiveMessage.Footer.create({
-          text: `${config.botName} • ${config.cloudName}`,
-        }),
-        header: proto.Message.InteractiveMessage.Header.create(header),
-        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-          buttons: buildNativeButtons(usedPrefix),
-        }),
-      });
-
-      const content = generateWAMessageFromContent(
-        from,
-        {
-          viewOnceMessage: {
-            message: {
-              interactiveMessage: interactiveMsg,
-            },
-          },
-        },
-        { quoted: msg }
-      );
-
-      await conn.relayMessage(from, content.message, { messageId: content.key.id });
-    } catch (e) {
-      console.error('[MENU] interactive gagal, fallback media/teks:', e.message);
-      // ---- FALLBACK: media + caption, atau teks biasa ----
-      try {
-        const media = mediaCache ? { buffer: mediaCache, type: cachedType } : await getMenuMedia(config.thumbMenu);
-        if (media) {
-          const fb =
-            media.type === 'video'
-              ? { video: media.buffer, caption: teks, gifPlayback: false }
-              : { image: media.buffer, caption: teks };
-          await conn.sendMessage(from, fb, { quoted: msg });
-        } else {
-          await reply(teks);
-        }
-      } catch (e2) {
-        console.error('[MENU] fallback gagal:', e2.message);
+      const media = await getMenuMedia(config.thumbMenu);
+      if (media) {
+        const content =
+          media.type === 'video'
+            ? { video: media.buffer, caption: teks, gifPlayback: false }
+            : { image: media.buffer, caption: teks };
+        await conn.sendMessage(from, content, { quoted: msg });
+      } else {
+        // Tidak ada media / link mati -> tetap tampilkan list menu sebagai teks
         await reply(teks);
       }
+    } catch (e) {
+      console.error('[MENU] gagal kirim, fallback teks:', e.message);
+      await reply(teks);
     }
   },
 };
