@@ -1,0 +1,25 @@
+{
+  "name": "habibi-bot",
+  "version": "1.0.0",
+  "description": "Base bot WhatsApp untuk operasional Habibi Store & Habibi Cloud (Baileys)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "baileys",
+    "bot",
+    "habibi-store",
+    "habibi-cloud"
+  ],
+  "author": "Habibih",
+  "license": "MIT",
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "pino": "^9.5.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
