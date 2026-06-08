@@ -25,7 +25,8 @@ const groupdb = require('../lib/groupdb');
 const FEATURES = {
   antilink: { key: 'antilink', info: 'hapus pesan ber-link (V1, tanpa kick)' },
   antilinkv2: { key: 'antilinkv2', info: 'hapus + KICK pengirim link (V2)' },
-  antilinkwa: { key: 'antilinkwa', info: 'hapus + kick link grup WhatsApp' },
+  antilinkwa: { key: 'antilinkwa', info: 'hapus pesan link grup WhatsApp (V1, tanpa kick)' },
+  antilinkwav2: { key: 'antilinkwav2', info: 'link grup WA: warning bertahap -> kick di batas maxWarn' },
   antilinkch: { key: 'antilinkch', info: 'hapus + kick link channel WhatsApp' },
   antibot: { key: 'antibot', info: 'kick bot lain yang join grup' },
   antitoxic: { key: 'antitoxic', info: 'hapus pesan kata kasar/kotor' },
@@ -33,6 +34,7 @@ const FEATURES = {
   antilinkpising: { key: 'antilinkpising', info: 'hapus + kick link/keyword phising' },
   antibug: { key: 'antibug', info: 'hapus + kick teks virtex/bug' },
   antitagall: { key: 'antitagall', info: 'blokir tagall/hidetag massal member biasa' },
+  antihidetag: { key: 'antihidetag', info: 'hapus pesan hidetag (mention tersembunyi) member biasa' },
   antiforeign: { key: 'antiforeign', info: 'kick nomor luar negeri yang join' },
 };
 

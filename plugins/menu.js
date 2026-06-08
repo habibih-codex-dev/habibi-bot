@@ -119,7 +119,8 @@ module.exports = {
 ╭───「 *PROTEKSI GRUP (ADMIN)* 」
 │ • ${p}antilink on/off (hapus)
 │ • ${p}antilinkv2 on/off (hapus+kick)
-│ • ${p}antilinkwa on/off
+│ • ${p}antilinkwa on/off (hapus)
+│ • ${p}antilinkwav2 on/off (warning)
 │ • ${p}antilinkch on/off
 │ • ${p}antibot on/off
 │ • ${p}antitoxic on/off
@@ -127,6 +128,7 @@ module.exports = {
 │ • ${p}antilinkpising on/off
 │ • ${p}antibug on/off
 │ • ${p}antitagall on/off
+│ • ${p}antihidetag on/off
 │ • ${p}antiforeign on/off
 ╰───────────────
 

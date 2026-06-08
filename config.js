@@ -58,6 +58,11 @@ const config = {
   // Cooldown antar perintah per user (dalam milidetik). 3000 = 3 detik
   cooldown: 3000,
 
+  // ====================== SISTEM WARNING ======================
+  // Maksimal jumlah pelanggaran sebelum user di-kick otomatis
+  // (dipakai oleh .antilinkwav2 / sistem peringatan bertahap).
+  maxWarn: 3,
+
   // ====================== SALDO / DEPOSIT ======================
   // Info pembayaran yang ditampilkan pada perintah .deposit
   payment: {
@@ -119,3 +124,4 @@ module.exports = config;
 
 // Ekspos sebagai variabel global agar mudah diakses lintas-file (opsional).
 global.thumbMenu = config.thumbMenu;
+global.maxWarn = config.maxWarn; // maksimal pelanggaran sebelum di-kick
