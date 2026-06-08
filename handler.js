@@ -88,21 +88,50 @@ module.exports = async function handler(conn, mUpsert) {
     if (mUpsert.type !== 'notify') return;
 
     const from = msg.key.remoteJid; // JID chat (grup atau pribadi)
+    if (!from) return;
     const isGroup = from.endsWith('@g.us');
 
-    // Sender JID -> WAJIB dibersihkan dari Device ID
-    const senderRaw = isGroup ? msg.key.participant : msg.key.remoteJid;
-    const sender = cleanJid(senderRaw);
+    // ---- Identitas PENGIRIM (tahan LID & Device ID) -----------------
+    // Baileys terbaru: di grup, msg.key.participant bisa berupa @lid
+    // ATAU undefined, sementara nomor telepon ada di participantPn/Alt.
+    const senderLid = isGroup ? cleanJid(msg.key.participant) : '';
+    const senderPn = cleanJid(
+      msg.key.participantPn || msg.key.participantAlt || (isGroup ? '' : msg.key.remoteJid)
+    );
+    // JID utama: utamakan nomor telepon, fallback ke LID, lalu remoteJid.
+    const sender = senderPn || senderLid || cleanJid(msg.key.remoteJid);
     const senderNumber = getNumber(sender);
+
+    // Daftar SEMUA identitas pengirim (untuk cek admin/owner lintas namespace)
+    const senderIds = [...new Set([sender, senderPn, senderLid].filter(Boolean))];
+
+    // Jika sender benar-benar tidak valid, hentikan agar tidak crash (null).
+    if (!senderNumber) {
+      console.log('[WARN] Sender tidak valid, pesan dilewati. key=', JSON.stringify(msg.key));
+      return;
+    }
 
     const body = getMessageText(msg).trim();
     if (!body) return;
 
-    // ---- Auto register user (auto-create di getUser) ----
-    db.getUser(sender);
+    // ---- AUTO-REGISTER: validasi & ciptakan SEBELUM eksekusi plugin ----
+    let user = db.getUser(sender);
+    if (!user) {
+      // Percobaan kedua (mis. baris pertama gagal tulis disk)
+      user = db.getUser(sender);
+    }
+    if (!user) {
+      console.error('[DB] FATAL: gagal membuat user untuk', sender, '- pesan dilewati.');
+      return; // jangan lanjut ke plugin dengan data null
+    }
 
-    const owner = isOwner(sender);
-    const botJid = cleanJid(conn.user.id);
+    // ---- Identitas BOT (nomor telepon + LID) ----
+    const botPn = cleanJid(conn.user?.id);
+    const botLid = cleanJid(conn.user?.lid);
+    const botIds = [...new Set([botPn, botLid].filter(Boolean))];
+
+    // Owner dicek terhadap semua identitas pengirim (kebal LID)
+    const owner = senderIds.some((j) => isOwner(j));
 
     // ===================== ANTILINK =====================
     // Berjalan di SETIAP pesan grup (bukan hanya perintah).
@@ -110,9 +139,10 @@ module.exports = async function handler(conn, mUpsert) {
       try {
         const meta = await conn.groupMetadata(from);
         const parts = meta.participants || [];
+        console.log('--- CEK PARTICIPANTS --- (antilink)', parts.length);
         // Pengecekan admin WAJIB lewat helper (isSameUser) — kebal Device ID & LID
-        const senderIsAdmin = isParticipantAdmin(parts, sender);
-        const botIsAdmin = isParticipantAdmin(parts, botJid);
+        const senderIsAdmin = isParticipantAdmin(parts, ...senderIds);
+        const botIsAdmin = isParticipantAdmin(parts, ...botIds);
 
         // Hanya tindak link grup WA dari NON-admin & NON-owner
         if (botIsAdmin && !senderIsAdmin && !owner && WA_GROUP_REGEX.test(body)) {
@@ -158,11 +188,22 @@ module.exports = async function handler(conn, mUpsert) {
     if (isGroup) {
       try {
         groupMetadata = await conn.groupMetadata(from);
-        participants = groupMetadata.participants || [];
+        participants = groupMetadata?.participants || [];
 
-        // Pengecekan admin KEBAL Device ID & LID (helper memakai isSameUser)
-        isAdmin = isParticipantAdmin(participants, sender);
-        isBotAdmin = isParticipantAdmin(participants, botJid);
+        // Retry sekali jika daftar peserta kosong (cache belum siap)
+        if (participants.length === 0) {
+          await new Promise((r) => setTimeout(r, 800));
+          groupMetadata = await conn.groupMetadata(from);
+          participants = groupMetadata?.participants || [];
+        }
+
+        // LOG DIAGNOSTIK: apakah daftar peserta berhasil diambil?
+        console.log('--- CEK PARTICIPANTS ---', participants.length);
+
+        // Pengecekan admin KEBAL Device ID & LID (helper memakai isSameUser,
+        // mencocokkan SEMUA identitas pengirim & bot: nomor telepon + LID)
+        isAdmin = isParticipantAdmin(participants, ...senderIds);
+        isBotAdmin = isParticipantAdmin(participants, ...botIds);
       } catch (e) {
         console.error('[GROUP] Gagal ambil metadata:', e.message);
       }
@@ -179,6 +220,9 @@ module.exports = async function handler(conn, mUpsert) {
       from,
       sender,
       senderNumber,
+      senderIds,
+      botIds,
+      user, // data user yang DIJAMIN valid (tidak null)
       body,
       command,
       args,

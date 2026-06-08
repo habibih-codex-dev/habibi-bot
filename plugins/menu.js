@@ -11,7 +11,9 @@ module.exports = {
   desc: 'Menampilkan menu utama',
   run: async (ctx) => {
     const { reply, sender, db, isOwner, usedPrefix } = ctx;
-    const u = db.getUser(sender);
+    // Pakai user dari ctx (sudah dijamin valid oleh handler).
+    // Fallback berlapis agar TIDAK PERNAH null -> tidak ada lagi error "reading 'premium'".
+    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0 };
     const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
     const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
 

@@ -30,7 +30,7 @@ module.exports = {
     await reply(jawaban);
 
     // Info sisa limit (limit aktual dipotong oleh handler setelah sukses)
-    const u = db.getUser(sender);
+    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0 };
     if (!isOwner && !u.premium) {
       const sisa = Math.max(0, u.limit - 1);
       await reply(`🔋 Sisa limit kamu: *${formatNumber(sisa)}*`);
