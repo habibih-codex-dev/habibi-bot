@@ -36,6 +36,23 @@ module.exports = {
 │ • ${p}ai <pertanyaan>
 ╰───────────────
 
+╭───「 *DOWNLOADER (BERLIMIT)* 」
+│ • ${p}tiktok <url>
+│ • ${p}ig <url>
+│ • ${p}facebook <url>
+│ • ${p}ytmp3 <url/judul>
+│ • ${p}ytmp4 <url/judul>
+│ • ${p}yts <kata kunci>
+│ • ${p}spotify <url>
+╰───────────────
+
+╭───「 *STORE / KATALOG* 」
+│ • ${p}list / ${p}katalog
+│ • ${p}addlist <kw> | <isi>
+│ • ${p}updatelist <kw> | <isi>
+│ • ${p}dellist <kw>
+╰───────────────
+
 ╭───「 *GRUP (ADMIN)* 」
 │ • ${p}kick @user
 │ • ${p}promote @user
@@ -49,6 +66,7 @@ ${
 │ • ${p}addprem <nomor> <hari>
 │ • ${p}delprem <nomor>
 │ • ${p}addlimit <nomor> <jumlah>
+│ • ${p}bc <teks promosi>
 ╰───────────────`
     : ''
 }

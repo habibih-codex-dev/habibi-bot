@@ -19,6 +19,7 @@ const path = require('path');
 const config = require('./config');
 const db = require('./lib/database');
 const groupdb = require('./lib/groupdb');
+const listdb = require('./lib/listdb');
 const { cleanJid, getNumber, isParticipantAdmin } = require('./lib/jid');
 const { isOwner } = require('./lib/functions');
 
@@ -158,6 +159,22 @@ module.exports = async function handler(conn, mUpsert) {
       } catch (e) {
         console.error('[ANTILINK] Error:', e.message);
       }
+    }
+
+    // ===================== AUTO-RESPONSE (STORE LIST) =====================
+    // Jika pesan TANPA prefix dan SAMA PERSIS dengan keyword di list.json,
+    // bot otomatis membalas dengan isi balasannya. (Tidak memotong limit.)
+    try {
+      const isCommand = config.prefix.some((p) => body.startsWith(p));
+      if (!isCommand) {
+        const item = listdb.get(body); // get() otomatis trim + lowercase
+        if (item && item.response) {
+          await conn.sendMessage(from, { text: String(item.response) }, { quoted: msg });
+          return; // selesai, jangan lanjut ke parsing command
+        }
+      }
+    } catch (e) {
+      console.error('[AUTO-RESPONSE] Error:', e.message);
     }
 
     // ---- Deteksi prefix & command ----
