@@ -19,7 +19,7 @@ const path = require('path');
 const config = require('./config');
 const db = require('./lib/database');
 const groupdb = require('./lib/groupdb');
-const { cleanJid, getNumber, isSameUser } = require('./lib/jid');
+const { cleanJid, getNumber, isParticipantAdmin } = require('./lib/jid');
 const { isOwner } = require('./lib/functions');
 
 // Regex deteksi link grup WhatsApp & URL umum
@@ -110,12 +110,9 @@ module.exports = async function handler(conn, mUpsert) {
       try {
         const meta = await conn.groupMetadata(from);
         const parts = meta.participants || [];
-        const senderIsAdmin = parts.some(
-          (p) => isSameUser(p.id, sender) && (p.admin === 'admin' || p.admin === 'superadmin')
-        );
-        const botIsAdmin = parts.some(
-          (p) => isSameUser(p.id, botJid) && (p.admin === 'admin' || p.admin === 'superadmin')
-        );
+        // Pengecekan admin WAJIB lewat helper (isSameUser) — kebal Device ID & LID
+        const senderIsAdmin = isParticipantAdmin(parts, sender);
+        const botIsAdmin = isParticipantAdmin(parts, botJid);
 
         // Hanya tindak link grup WA dari NON-admin & NON-owner
         if (botIsAdmin && !senderIsAdmin && !owner && WA_GROUP_REGEX.test(body)) {
@@ -163,13 +160,9 @@ module.exports = async function handler(conn, mUpsert) {
         groupMetadata = await conn.groupMetadata(from);
         participants = groupMetadata.participants || [];
 
-        // Pengecekan admin KEBAL Device ID karena pakai isSameUser
-        isAdmin = participants.some(
-          (p) => isSameUser(p.id, sender) && (p.admin === 'admin' || p.admin === 'superadmin')
-        );
-        isBotAdmin = participants.some(
-          (p) => isSameUser(p.id, botJid) && (p.admin === 'admin' || p.admin === 'superadmin')
-        );
+        // Pengecekan admin KEBAL Device ID & LID (helper memakai isSameUser)
+        isAdmin = isParticipantAdmin(participants, sender);
+        isBotAdmin = isParticipantAdmin(participants, botJid);
       } catch (e) {
         console.error('[GROUP] Gagal ambil metadata:', e.message);
       }

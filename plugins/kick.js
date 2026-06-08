@@ -4,7 +4,7 @@
  * Penggunaan: .kick @user | reply pesan target
  */
 
-const { getNumber, isSameUser } = require('../lib/jid');
+const { getNumber, isParticipantAdmin } = require('../lib/jid');
 
 module.exports = {
   command: ['kick'],
@@ -21,10 +21,8 @@ module.exports = {
 
     if (!target) return reply('Tag/mention atau reply member yang ingin dikeluarkan.\nContoh: *.kick @user*');
 
-    // Jangan kick sesama admin / owner grup
-    const targetIsAdmin = participants.some(
-      (p) => isSameUser(p.id, target) && (p.admin === 'admin' || p.admin === 'superadmin')
-    );
+    // Jangan kick sesama admin / owner grup (cek via helper isSameUser)
+    const targetIsAdmin = isParticipantAdmin(participants, target);
     if (targetIsAdmin) return reply('⛔ Tidak bisa mengeluarkan sesama admin.');
 
     await conn.groupParticipantsUpdate(from, [target], 'remove');
