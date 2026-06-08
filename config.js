@@ -76,18 +76,6 @@ const config = {
     cityName: 'Jakarta',
   },
 
-  // ====================== API IPHONE QUOTE (IQC) ======================
-  // Fitur .iqc butuh API yang mendukung screenshot reaksi iOS lengkap.
-  // Banyak provider butuh apikey (lolhuman / neoxr / dll). Isi sesuai langganan.
-  iqc: {
-    // provider: 'lolhuman' | 'custom'
-    provider: 'lolhuman',
-    apikey: '', // ISI dengan apikey kamu
-    // Untuk provider 'custom': URL GET, gunakan {text} & {apikey} sebagai placeholder.
-    // Endpoint harus mengembalikan gambar (binary) atau JSON { url }.
-    customUrl: '',
-  },
-
   // ====================== PESAN ======================
   messages: {
     owner: '⛔ Perintah ini khusus *Owner* bot.',
