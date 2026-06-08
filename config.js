@@ -67,6 +67,32 @@ const config = {
     note: 'Setelah transfer, kirim bukti ke Owner untuk konfirmasi pengisian saldo.',
   },
 
+  // ====================== KEAMANAN / PROTEKSI GRUP ======================
+  security: {
+    // Daftar kata toxic/kasar dasar (auto-delete bila .antitoxic ON).
+    // Tambahkan sesuai kebutuhan komunitas kamu.
+    toxicWords: [
+      'anjing', 'anjg', 'asu', 'bangsat', 'bajingan', 'kontol', 'kntl',
+      'memek', 'mmk', 'ngentot', 'ngntd', 'pepek', 'jancok', 'jancuk',
+      'tolol', 'goblok', 'gblk', 'bego', 'idiot', 'kampret', 'pukimak',
+      'babi', 'setan', 'tai', 'taik', 'bgst',
+    ],
+    // Kata kunci judi online (auto-delete + kick bila .antijudol ON).
+    gamblingWords: [
+      'slot', 'judol', 'gacor', 'maxwin', 'scatter', 'zeus', 'pragmatic',
+      'rtp', 'pgsoft', 'jackpot', 'jepe', 'wd ', 'cuan', 'olympus',
+      'mahjong ways', 'situs slot', 'slot88', 'depo', 'rungkad',
+    ],
+    // Pola/keyword phising umum.
+    phisingWords: [
+      'login akun', 'verifikasi akun', 'klaim hadiah', 'kik bca', 'm-banking',
+      'hadiah saldo', 'gratis pulsa', 'klaim sekarang', 'akun anda diblokir',
+    ],
+    // Awalan nomor LUAR NEGERI yang di-kick bila .antiforeign ON.
+    // Catatan: 62 = Indonesia (TIDAK termasuk). Sesuaikan bila perlu.
+    foreignPrefixes: ['1', '7', '44', '91', '92', '234', '880', '84', '63', '60', '212', '20'],
+  },
+
   // ====================== FITUR ISLAMI ======================
   islamic: {
     // ID kota untuk Auto Jadwal Sholat (sumber: api.myquran.com).

@@ -29,6 +29,7 @@ const config = require('./config');
 const { cleanJid } = require('./lib/jid');
 const autosholat = require('./lib/autosholat');
 const sewacron = require('./lib/sewacron');
+const antijoin = require('./lib/antijoin');
 
 // Logger senyap agar terminal bersih
 const logger = pino({ level: 'silent' });
@@ -160,7 +161,13 @@ async function startBot() {
 
   // ---- UPDATE GRUP (cache metadata bisa ditambahkan di sini bila perlu) ----
   conn.ev.on('groups.update', () => {});
-  conn.ev.on('group-participants.update', () => {});
+
+  // ---- ANTI-JOIN (antibot / antiforeign) ----
+  try {
+    antijoin.register(conn);
+  } catch (e) {
+    console.error('Gagal memasang anti-join:', e.message);
+  }
 
   return conn;
 }

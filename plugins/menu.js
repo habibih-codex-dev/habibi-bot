@@ -111,10 +111,23 @@ module.exports = {
 │ • ${p}kick @user
 │ • ${p}promote @user
 │ • ${p}demote @user
-│ • ${p}antilink on/off
 │ • ${p}tagall / ${p}hidetag
 │ • ${p}del (reply)
 │ • ${p}open / ${p}close
+╰───────────────
+
+╭───「 *PROTEKSI GRUP (ADMIN)* 」
+│ • ${p}antilink on/off (hapus)
+│ • ${p}antilinkv2 on/off (hapus+kick)
+│ • ${p}antilinkwa on/off
+│ • ${p}antilinkch on/off
+│ • ${p}antibot on/off
+│ • ${p}antitoxic on/off
+│ • ${p}antijudol on/off
+│ • ${p}antilinkpising on/off
+│ • ${p}antibug on/off
+│ • ${p}antitagall on/off
+│ • ${p}antiforeign on/off
 ╰───────────────
 
 ╭───「 *OWNER MENU* 」

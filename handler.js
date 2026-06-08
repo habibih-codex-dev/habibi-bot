@@ -20,12 +20,9 @@ const config = require('./config');
 const db = require('./lib/database');
 const groupdb = require('./lib/groupdb');
 const listdb = require('./lib/listdb');
+const protection = require('./lib/protection');
 const { cleanJid, getNumber, isParticipantAdmin } = require('./lib/jid');
 const { isOwner } = require('./lib/functions');
-
-// Regex deteksi link grup WhatsApp & URL umum
-const LINK_REGEX = /(chat\.whatsapp\.com\/[A-Za-z0-9]+)|(https?:\/\/[^\s]+)/i;
-const WA_GROUP_REGEX = /chat\.whatsapp\.com\/[A-Za-z0-9]+/i;
 
 // ===================== LOADER PLUGIN =====================
 const PLUGIN_DIR = path.join(__dirname, 'plugins');
@@ -159,30 +156,52 @@ module.exports = async function handler(conn, mUpsert) {
       if (config.mode === 'private' && isGroup) return; // abaikan grup
     }
 
-    // ===================== ANTILINK =====================
-    // Berjalan di SETIAP pesan grup (bukan hanya perintah).
-    if (isGroup && groupdb.getGroup(from).antilink && LINK_REGEX.test(body)) {
-      try {
-        const meta = await conn.groupMetadata(from);
-        const parts = meta.participants || [];
-        console.log('--- CEK PARTICIPANTS --- (antilink)', parts.length);
-        // Pengecekan admin WAJIB lewat helper (isSameUser) — kebal Device ID & LID
-        const senderIsAdmin = isParticipantAdmin(parts, ...senderIds);
-        const botIsAdmin = isParticipantAdmin(parts, ...botIds);
+    // ===================== METADATA GRUP (sekali ambil) =====================
+    // Diambil lebih awal agar bisa dipakai oleh mesin proteksi & command.
+    let groupMetadata = null;
+    let participants = [];
+    let isAdmin = false;
+    let isBotAdmin = false;
 
-        // Hanya tindak link grup WA dari NON-admin & NON-owner
-        if (botIsAdmin && !senderIsAdmin && !owner && WA_GROUP_REGEX.test(body)) {
-          await conn.sendMessage(from, {
-            text: `⚠️ *ANTILINK AKTIF*\n@${senderNumber} terdeteksi mengirim link grup. Pesan dihapus.`,
-            mentions: [sender],
-          });
-          // Hapus pesan pelanggar
-          await conn.sendMessage(from, { delete: msg.key });
-          // Keluarkan pelanggar
-          await conn.groupParticipantsUpdate(from, [sender], 'remove').catch(() => {});
+    if (isGroup) {
+      try {
+        groupMetadata = await conn.groupMetadata(from);
+        participants = groupMetadata?.participants || [];
+
+        // Retry sekali jika daftar peserta kosong (cache belum siap)
+        if (participants.length === 0) {
+          await new Promise((r) => setTimeout(r, 800));
+          groupMetadata = await conn.groupMetadata(from);
+          participants = groupMetadata?.participants || [];
         }
+
+        // Pengecekan admin KEBAL Device ID & LID (helper memakai isSameUser,
+        // mencocokkan SEMUA identitas pengirim & bot: nomor telepon + LID)
+        isAdmin = isParticipantAdmin(participants, ...senderIds);
+        isBotAdmin = isParticipantAdmin(participants, ...botIds);
       } catch (e) {
-        console.error('[ANTILINK] Error:', e.message);
+        console.error('[GROUP] Gagal ambil metadata:', e.message);
+      }
+    }
+
+    // ===================== PROTEKSI ANTI-ABUSE =====================
+    // Jalan di SETIAP pesan grup. Owner & Admin otomatis di-bypass di dalam.
+    if (isGroup) {
+      try {
+        const acted = await protection.runProtections({
+          conn,
+          msg,
+          from,
+          body,
+          sender,
+          senderNumber,
+          isAdmin,
+          isBotAdmin,
+          isOwner: owner,
+        });
+        if (acted) return; // pesan sudah ditindak (dihapus), stop.
+      } catch (e) {
+        console.error('[PROTEKSI] Error:', e.message);
       }
     }
 
@@ -221,39 +240,34 @@ module.exports = async function handler(conn, mUpsert) {
       return;
     }
 
-    // ---- Kumpulkan metadata grup & status admin (JID-safe) ----
-    let groupMetadata = null;
-    let participants = [];
-    let isAdmin = false;
-    let isBotAdmin = false;
-
-    if (isGroup) {
-      try {
-        groupMetadata = await conn.groupMetadata(from);
-        participants = groupMetadata?.participants || [];
-
-        // Retry sekali jika daftar peserta kosong (cache belum siap)
-        if (participants.length === 0) {
-          await new Promise((r) => setTimeout(r, 800));
-          groupMetadata = await conn.groupMetadata(from);
-          participants = groupMetadata?.participants || [];
-        }
-
-        // LOG DIAGNOSTIK: apakah daftar peserta berhasil diambil?
-        console.log('--- CEK PARTICIPANTS ---', participants.length);
-
-        // Pengecekan admin KEBAL Device ID & LID (helper memakai isSameUser,
-        // mencocokkan SEMUA identitas pengirim & bot: nomor telepon + LID)
-        isAdmin = isParticipantAdmin(participants, ...senderIds);
-        isBotAdmin = isParticipantAdmin(participants, ...botIds);
-      } catch (e) {
-        console.error('[GROUP] Gagal ambil metadata:', e.message);
-      }
-    }
-
     // ---- Helper balas pesan ----
     const reply = (teks) =>
       conn.sendMessage(from, { text: String(teks) }, { quoted: msg });
+
+    // ===================== ANTI-TAGALL =====================
+    // Jika .antitagall AKTIF dan MEMBER BIASA mencoba tagall/hidetag,
+    // tindak (hapus pesan + kick bila bot admin). Owner/Admin bypass.
+    if (
+      isGroup &&
+      ['tagall', 'hidetag', 'tagsemua'].includes(command) &&
+      groupdb.isOn(from, 'antitagall') &&
+      !owner &&
+      !isAdmin
+    ) {
+      try {
+        await conn.sendMessage(from, {
+          text: `🛡️ *ANTI-TAGALL*\n@${senderNumber} dilarang melakukan tag massal. Fitur ini khusus admin.`,
+          mentions: [sender],
+        });
+        await conn.sendMessage(from, { delete: msg.key }).catch(() => {});
+        if (isBotAdmin) {
+          await conn.groupParticipantsUpdate(from, [sender], 'remove').catch(() => {});
+        }
+      } catch (e) {
+        console.error('[ANTI-TAGALL] Error:', e.message);
+      }
+      return; // jangan eksekusi command tagall-nya
+    }
 
     // ---- Context yang dikirim ke plugin ----
     const ctx = {
