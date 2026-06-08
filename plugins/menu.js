@@ -33,6 +33,7 @@ module.exports = {
 │ • ${p}runtime
 │ • ${p}saldo / ${p}me
 │ • ${p}deposit
+│ • ${p}sewabot
 ╰───────────────
 
 ╭───「 *FITUR (BERLIMIT)* 」
@@ -89,6 +90,8 @@ ${
 │ • ${p}addsaldo @user <jumlah>
 │ • ${p}minussaldo @user <jumlah>
 │ • ${p}add <nomor>
+│ • ${p}tambahsewa <hari>
+│ • ${p}listsewa / ${p}delsewa
 │ • ${p}bc <teks promosi>
 ╰───────────────`
     : ''

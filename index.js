@@ -28,6 +28,7 @@ const readline = require('readline');
 const config = require('./config');
 const { cleanJid } = require('./lib/jid');
 const autosholat = require('./lib/autosholat');
+const sewacron = require('./lib/sewacron');
 
 // Logger senyap agar terminal bersih
 const logger = pino({ level: 'silent' });
@@ -125,6 +126,12 @@ async function startBot() {
         autosholat.start(conn);
       } catch (e) {
         console.error('Gagal memulai auto-sholat:', e.message);
+      }
+      // Mulai / segarkan cron auto-expiry sewa bot
+      try {
+        sewacron.start(conn);
+      } catch (e) {
+        console.error('Gagal memulai sewa-cron:', e.message);
       }
     }
 
