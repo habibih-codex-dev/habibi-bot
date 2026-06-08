@@ -34,6 +34,8 @@ module.exports = {
 
 ╭───「 *FITUR (BERLIMIT)* 」
 │ • ${p}ai <pertanyaan>
+│ • ${p}play <judul lagu>
+│ • ${p}iqc <teks> / reply
 ╰───────────────
 
 ╭───「 *DOWNLOADER (BERLIMIT)* 」
