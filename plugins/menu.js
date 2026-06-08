@@ -13,7 +13,7 @@ module.exports = {
     const { reply, sender, db, isOwner, usedPrefix } = ctx;
     // Pakai user dari ctx (sudah dijamin valid oleh handler).
     // Fallback berlapis agar TIDAK PERNAH null -> tidak ada lagi error "reading 'premium'".
-    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0 };
+    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
     const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
     const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
 
@@ -24,12 +24,15 @@ module.exports = {
 │ 🛒 Layanan : ${config.storeName} & ${config.cloudName}
 │ 🎫 Status : ${status}
 │ 🔋 Limit : ${limitText}
+│ 💰 Saldo : Rp${formatNumber(u.saldo || 0)}
 ╰───────────────
 
 ╭───「 *GENERAL* 」
 │ • ${p}menu
 │ • ${p}ping
 │ • ${p}runtime
+│ • ${p}saldo / ${p}me
+│ • ${p}deposit
 ╰───────────────
 
 ╭───「 *FITUR (BERLIMIT)* 」
@@ -48,6 +51,17 @@ module.exports = {
 │ • ${p}spotify <url>
 ╰───────────────
 
+╭───「 *ISLAMI* 」
+│ • ${p}jadwalsholat <kota>
+│ • ${p}alquran <surah>:<ayat>
+│ • ${p}autosholat on/off (admin)
+╰───────────────
+
+╭───「 *UTILITAS* 」
+│ • ${p}sticker / ${p}s
+│ • ${p}toimg (reply stiker)
+╰───────────────
+
 ╭───「 *STORE / KATALOG* 」
 │ • ${p}list / ${p}katalog
 │ • ${p}addlist <kw> | <isi>
@@ -60,6 +74,8 @@ module.exports = {
 │ • ${p}promote @user
 │ • ${p}demote @user
 │ • ${p}antilink on/off
+│ • ${p}tagall / ${p}hidetag
+│ • ${p}del (reply)
 ╰───────────────
 ${
   isOwner
@@ -68,12 +84,14 @@ ${
 │ • ${p}addprem <nomor> <hari>
 │ • ${p}delprem <nomor>
 │ • ${p}addlimit <nomor> <jumlah>
+│ • ${p}addsaldo @user <jumlah>
+│ • ${p}minussaldo @user <jumlah>
 │ • ${p}bc <teks promosi>
 ╰───────────────`
     : ''
 }
 
-_Ketik perintah dengan prefix:_ ${config.prefix.join(' ')}
+_Mode bot: *${config.mode}* • Prefix:_ ${config.prefix.join(' ')}
 `.trim();
 
     await reply(teks);

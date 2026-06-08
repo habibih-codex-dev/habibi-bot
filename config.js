@@ -40,9 +40,47 @@ const config = {
   // Jam reset limit harian (format 24 jam, waktu server). 0 = tengah malam
   resetHour: 0,
 
+  // ====================== MODE BOT ======================
+  // Tempat bot merespon perintah:
+  //   'group'   -> hanya merespon di dalam grup (chat pribadi diabaikan)
+  //   'private' -> hanya merespon di chat pribadi (grup diabaikan)
+  //   'both'    -> merespon di grup & chat pribadi
+  // Catatan: Owner SELALU bypass (bisa pakai bot di mana saja).
+  mode: 'both',
+
   // ====================== ANTI-SPAM ======================
   // Cooldown antar perintah per user (dalam milidetik). 3000 = 3 detik
   cooldown: 3000,
+
+  // ====================== SALDO / DEPOSIT ======================
+  // Info pembayaran yang ditampilkan pada perintah .deposit
+  payment: {
+    qris: 'https://example.com/qris-habibi.png', // ganti link gambar QRIS kamu
+    gopay: '0812-3456-7890 (a.n. Habibih)',
+    dana: '0812-3456-7890 (a.n. Habibih)',
+    note: 'Setelah transfer, kirim bukti ke Owner untuk konfirmasi pengisian saldo.',
+  },
+
+  // ====================== FITUR ISLAMI ======================
+  islamic: {
+    // ID kota untuk Auto Jadwal Sholat (sumber: api.myquran.com).
+    // 1301 = KOTA JAKARTA. Cari ID lain via .jadwalsholat <kota>.
+    cityId: '1301',
+    // Nama wilayah yang ditampilkan pada pengingat adzan otomatis.
+    cityName: 'Jakarta',
+  },
+
+  // ====================== API IPHONE QUOTE (IQC) ======================
+  // Fitur .iqc butuh API yang mendukung screenshot reaksi iOS lengkap.
+  // Banyak provider butuh apikey (lolhuman / neoxr / dll). Isi sesuai langganan.
+  iqc: {
+    // provider: 'lolhuman' | 'custom'
+    provider: 'lolhuman',
+    apikey: '', // ISI dengan apikey kamu
+    // Untuk provider 'custom': URL GET, gunakan {text} & {apikey} sebagai placeholder.
+    // Endpoint harus mengembalikan gambar (binary) atau JSON { url }.
+    customUrl: '',
+  },
 
   // ====================== PESAN ======================
   messages: {

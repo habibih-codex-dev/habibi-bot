@@ -27,6 +27,7 @@ const readline = require('readline');
 
 const config = require('./config');
 const { cleanJid } = require('./lib/jid');
+const autosholat = require('./lib/autosholat');
 
 // Logger senyap agar terminal bersih
 const logger = pino({ level: 'silent' });
@@ -119,6 +120,12 @@ async function startBot() {
       // Bersihkan Device ID dari JID bot agar pengecekan owner/admin akurat
       conn.user.id = cleanJid(conn.user.id);
       console.log(`✅ ${config.botName} terhubung sebagai ${conn.user.id}`);
+      // Mulai / segarkan scheduler pengingat adzan otomatis (WIB)
+      try {
+        autosholat.start(conn);
+      } catch (e) {
+        console.error('Gagal memulai auto-sholat:', e.message);
+      }
     }
 
     if (connection === 'close') {

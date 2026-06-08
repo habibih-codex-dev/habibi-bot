@@ -85,8 +85,16 @@ module.exports = async function handler(conn, mUpsert) {
   try {
     const msg = mUpsert.messages?.[0];
     if (!msg || !msg.message) return;
-    if (msg.key.fromMe) return; // abaikan pesan dari bot sendiri
     if (mUpsert.type !== 'notify') return;
+
+    // CATATAN BUG OWNER:
+    // Sebelumnya semua pesan fromMe (dikirim oleh akun bot sendiri)
+    // langsung di-`return`. Akibatnya bila OWNER memakai nomor yang sama
+    // dengan bot (atau linked device), perintahnya TIDAK pernah diproses
+    // -> bot "tidak merespon owner" padahal nomor lain normal.
+    // Solusi: proses pesan fromMe juga. Identitas pengirim diarahkan ke
+    // akun bot sendiri. (Lihat ekstraksi sender di bawah.)
+    const fromMe = !!msg.key.fromMe;
 
     const from = msg.key.remoteJid; // JID chat (grup atau pribadi)
     if (!from) return;
@@ -95,12 +103,22 @@ module.exports = async function handler(conn, mUpsert) {
     // ---- Identitas PENGIRIM (tahan LID & Device ID) -----------------
     // Baileys terbaru: di grup, msg.key.participant bisa berupa @lid
     // ATAU undefined, sementara nomor telepon ada di participantPn/Alt.
-    const senderLid = isGroup ? cleanJid(msg.key.participant) : '';
-    const senderPn = cleanJid(
-      msg.key.participantPn || msg.key.participantAlt || (isGroup ? '' : msg.key.remoteJid)
-    );
-    // JID utama: utamakan nomor telepon, fallback ke LID, lalu remoteJid.
-    const sender = senderPn || senderLid || cleanJid(msg.key.remoteJid);
+    let senderLid;
+    let senderPn;
+    let sender;
+    if (fromMe) {
+      // Pesan dari akun bot sendiri (Owner pakai nomor bot / linked device)
+      senderPn = cleanJid(conn.user?.id);
+      senderLid = cleanJid(conn.user?.lid);
+      sender = senderPn || senderLid;
+    } else {
+      senderLid = isGroup ? cleanJid(msg.key.participant) : '';
+      senderPn = cleanJid(
+        msg.key.participantPn || msg.key.participantAlt || (isGroup ? '' : msg.key.remoteJid)
+      );
+      // JID utama: utamakan nomor telepon, fallback ke LID, lalu remoteJid.
+      sender = senderPn || senderLid || cleanJid(msg.key.remoteJid);
+    }
     const senderNumber = getNumber(sender);
 
     // Daftar SEMUA identitas pengirim (untuk cek admin/owner lintas namespace)
@@ -134,6 +152,13 @@ module.exports = async function handler(conn, mUpsert) {
     // Owner dicek terhadap semua identitas pengirim (kebal LID)
     const owner = senderIds.some((j) => isOwner(j));
 
+    // ===================== MODE BOT =====================
+    // group/private/both. Owner SELALU bypass (akses penuh di mana saja).
+    if (!owner) {
+      if (config.mode === 'group' && !isGroup) return; // abaikan chat pribadi
+      if (config.mode === 'private' && isGroup) return; // abaikan grup
+    }
+
     // ===================== ANTILINK =====================
     // Berjalan di SETIAP pesan grup (bukan hanya perintah).
     if (isGroup && groupdb.getGroup(from).antilink && LINK_REGEX.test(body)) {
@@ -166,7 +191,7 @@ module.exports = async function handler(conn, mUpsert) {
     // bot otomatis membalas dengan isi balasannya. (Tidak memotong limit.)
     try {
       const isCommand = config.prefix.some((p) => body.startsWith(p));
-      if (!isCommand) {
+      if (!isCommand && !fromMe) {
         const item = listdb.get(body); // get() otomatis trim + lowercase
         if (item && item.response) {
           await conn.sendMessage(from, { text: String(item.response) }, { quoted: msg });
