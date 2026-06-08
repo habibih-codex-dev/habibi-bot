@@ -62,7 +62,8 @@ module.exports = {
   command: ['play', 'ytplay', 'song'],
   desc: 'Cari & kirim lagu (audio MP3) dari YouTube',
   run: async (ctx) => {
-    const { conn, from, msg, text, reply, db, sender, isOwner, usedPrefix } = ctx;
+    const { conn, from, msg, text, reply, db, sender, isOwner, usedPrefix, fakeOfficial } = ctx;
+    const fq = fakeOfficial || msg; // fake reply official (centang biru)
 
     if (!text) {
       return reply(`Masukkan judul lagu.\nContoh: *${usedPrefix}play dj siul*`);
@@ -97,7 +98,7 @@ module.exports = {
       await conn.sendMessage(
         from,
         { image: { url: video.thumbnail || video.image }, caption },
-        { quoted: msg }
+        { quoted: fq }
       );
 
       // ---- Output 2: unduh & kirim audio ----
@@ -132,7 +133,7 @@ module.exports = {
           ptt: false,
           fileName: `${video.title}.${ext}`,
         },
-        { quoted: msg }
+        { quoted: fq }
       );
 
       // Sukses -> potong limit

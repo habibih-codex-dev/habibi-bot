@@ -22,7 +22,10 @@ const groupdb = require('./lib/groupdb');
 const listdb = require('./lib/listdb');
 const protection = require('./lib/protection');
 const { cleanJid, getNumber, isParticipantAdmin } = require('./lib/jid');
-const { isOwner } = require('./lib/functions');
+const { isOwner, fakeQuoted } = require('./lib/functions');
+
+// Fake quoted official (centang biru) dipakai sebagai default balasan bot.
+const FAKE_OFFICIAL = fakeQuoted('WhatsApp', 'Official Account ✓');
 
 // ===================== LOADER PLUGIN =====================
 const PLUGIN_DIR = path.join(__dirname, 'plugins');
@@ -240,9 +243,9 @@ module.exports = async function handler(conn, mUpsert) {
       return;
     }
 
-    // ---- Helper balas pesan ----
+    // ---- Helper balas pesan (pakai fake reply official / centang biru) ----
     const reply = (teks) =>
-      conn.sendMessage(from, { text: String(teks) }, { quoted: msg });
+      conn.sendMessage(from, { text: String(teks) }, { quoted: FAKE_OFFICIAL });
 
     // ===================== ANTI-TAGALL =====================
     // Jika .antitagall AKTIF dan MEMBER BIASA mencoba tagall/hidetag,
@@ -291,6 +294,7 @@ module.exports = async function handler(conn, mUpsert) {
       isBotAdmin,
       isOwner: owner,
       reply,
+      fakeOfficial: FAKE_OFFICIAL, // fake reply official (centang biru) untuk media/plugin
       db,
     };
 

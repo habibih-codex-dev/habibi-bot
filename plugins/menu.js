@@ -1,39 +1,45 @@
 /**
  * plugins/menu.js
- * Menu utama bot — dikirim sebagai GAMBAR/VIDEO dengan sistem CACHING.
+ * Menu utama bot — INTERACTIVE MESSAGE (Native Flow / Button) ala bot premium.
  *
- * Anti-download berulang: media (config.thumbMenu) hanya diunduh SEKALI
- * pada pemakaian pertama, lalu disimpan di memori (Buffer). Request
- * berikutnya langsung dikirim dari cache (instan, hemat kuota & CPU VPS).
+ * Dibuat dengan merakit RAW proto langsung (tanpa fork Baileys):
+ *   generateWAMessageFromContent + proto.Message.InteractiveMessage
+ *   -> NativeFlowMessage dengan tombol:
+ *      - quick_reply : All Menu, Sewa Bot, Owner
+ *      - cta_url     : Website Store (Habibi Cloud)
+ *   lalu di-relay via conn.relayMessage().
+ *
+ * Tetap ada sistem CACHING media (anti-download berulang) untuk header
+ * gambar/video, dan FALLBACK ke kirim media+caption biasa bila perangkat
+ * tidak mendukung interactive message.
  */
 
 const axios = require('axios');
+const baileys = require('@whiskeysockets/baileys');
 const config = require('../config');
 const { formatNumber } = require('../lib/functions');
 
+const {
+  generateWAMessageFromContent,
+  prepareWAMessageMedia,
+  proto,
+} = baileys;
+
 // ===================== CACHE MEDIA (module-level) =====================
-// Bertahan selama proses hidup; ikut tereset saat hot-reload plugin.
 let mediaCache = null; // Buffer media yang sudah diunduh
-let cachedUrl = null; // URL sumber cache saat ini (deteksi perubahan config)
+let cachedUrl = null; // URL sumber cache saat ini
 let cachedType = null; // 'video' | 'image'
 
-/** Tentukan tipe media dari URL (abaikan query string). */
 function detectType(url) {
   const clean = String(url).split('?')[0].toLowerCase();
   return clean.endsWith('.mp4') ? 'video' : 'image';
 }
 
-/**
- * Ambil media dari cache; jika belum ada (atau URL berubah), unduh sekali.
- * @returns {Promise<{buffer: Buffer, type: string}|null>}
- */
 async function getMenuMedia(url) {
   if (!url) return null;
-  // Sudah ada di cache & URL sama -> pakai cache (instan)
   if (mediaCache && cachedUrl === url) {
     return { buffer: mediaCache, type: cachedType };
   }
-  // Unduh sekali, lalu simpan ke memori
   const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 30000 });
   mediaCache = Buffer.from(res.data);
   cachedUrl = url;
@@ -42,19 +48,14 @@ async function getMenuMedia(url) {
   return { buffer: mediaCache, type: cachedType };
 }
 
-module.exports = {
-  command: ['menu', 'help', 'start'],
-  desc: 'Menampilkan menu utama',
-  run: async (ctx) => {
-    const { conn, from, msg, reply, sender, db, isOwner, usedPrefix } = ctx;
-    // Pakai user dari ctx (sudah dijamin valid oleh handler).
-    // Fallback berlapis agar TIDAK PERNAH null -> tidak ada lagi error "reading 'premium'".
-    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
-    const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
-    const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
+/** Susun teks lengkap daftar fitur (dipakai sebagai body interactive & fallback caption). */
+function buildMenuText(ctx, u) {
+  const { isOwner, usedPrefix } = ctx;
+  const p = usedPrefix;
+  const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
+  const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
 
-    const p = usedPrefix;
-    const teks = `
+  return `
 ╭───「 *${config.botName}* 」
 │ 👤 Owner : ${config.ownerName}
 │ 🛒 Layanan : ${config.storeName} & ${config.cloudName}
@@ -149,27 +150,118 @@ module.exports = {
 
 _Mode bot: *${config.mode}* • Prefix:_ ${config.prefix.join(' ')}
 `.trim();
+}
 
-    // ---- Kirim menu sebagai media (image/video) dengan caption ----
+/** Bangun array tombol Native Flow (quick_reply + cta_url). */
+function buildNativeButtons(p) {
+  return [
+    {
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({
+        display_text: '📋 All Menu',
+        id: `${p}allmenu`,
+      }),
+    },
+    {
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({
+        display_text: '🛒 Sewa Bot',
+        id: `${p}sewabot`,
+      }),
+    },
+    {
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({
+        display_text: '👤 Owner',
+        id: `${p}owner`,
+      }),
+    },
+    {
+      name: 'cta_url',
+      buttonParamsJson: JSON.stringify({
+        display_text: '🌐 Website Store',
+        url: 'https://wa.me/' + ((config.owner && config.owner[0]) || ''),
+        merchant_url: 'https://wa.me/' + ((config.owner && config.owner[0]) || ''),
+      }),
+    },
+  ];
+}
+
+module.exports = {
+  command: ['menu', 'help', 'start', 'allmenu'],
+  desc: 'Menampilkan menu utama (interactive)',
+  run: async (ctx) => {
+    const { conn, from, msg, reply, sender, db, usedPrefix } = ctx;
+    const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
+    const teks = buildMenuText(ctx, u);
+
+    // ---- Coba kirim sebagai INTERACTIVE MESSAGE (Native Flow) ----
     try {
+      // Siapkan header media (pakai cache) bila ada URL
+      let header = { title: '', subtitle: '', hasMediaAttachment: false };
       const url = config.thumbMenu;
-      const media = await getMenuMedia(url);
-
-      if (!media) {
-        // Tidak ada URL media -> fallback teks biasa
-        return reply(teks);
+      if (url) {
+        try {
+          const media = await getMenuMedia(url);
+          if (media) {
+            const prepared =
+              media.type === 'video'
+                ? await prepareWAMessageMedia({ video: media.buffer }, { upload: conn.waUploadToServer })
+                : await prepareWAMessageMedia({ image: media.buffer }, { upload: conn.waUploadToServer });
+            header = {
+              ...prepared,
+              title: `${config.botName}`,
+              subtitle: config.storeName,
+              hasMediaAttachment: true,
+            };
+          }
+        } catch (e) {
+          console.error('[MENU] header media gagal, lanjut tanpa media:', e.message);
+        }
       }
 
-      const content =
-        media.type === 'video'
-          ? { video: media.buffer, caption: teks, gifPlayback: false }
-          : { image: media.buffer, caption: teks };
+      const interactiveMsg = proto.Message.InteractiveMessage.create({
+        body: proto.Message.InteractiveMessage.Body.create({ text: teks }),
+        footer: proto.Message.InteractiveMessage.Footer.create({
+          text: `${config.botName} • ${config.cloudName}`,
+        }),
+        header: proto.Message.InteractiveMessage.Header.create(header),
+        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+          buttons: buildNativeButtons(usedPrefix),
+        }),
+      });
 
-      await conn.sendMessage(from, content, { quoted: msg });
+      const content = generateWAMessageFromContent(
+        from,
+        {
+          viewOnceMessage: {
+            message: {
+              interactiveMessage: interactiveMsg,
+            },
+          },
+        },
+        { quoted: msg }
+      );
+
+      await conn.relayMessage(from, content.message, { messageId: content.key.id });
     } catch (e) {
-      console.error('[MENU] gagal kirim media, fallback teks:', e.message);
-      // Jika media gagal diunduh/dikirim, menu tetap tampil sebagai teks
-      await reply(teks);
+      console.error('[MENU] interactive gagal, fallback media/teks:', e.message);
+      // ---- FALLBACK: media + caption, atau teks biasa ----
+      try {
+        const media = mediaCache ? { buffer: mediaCache, type: cachedType } : await getMenuMedia(config.thumbMenu);
+        if (media) {
+          const fb =
+            media.type === 'video'
+              ? { video: media.buffer, caption: teks, gifPlayback: false }
+              : { image: media.buffer, caption: teks };
+          await conn.sendMessage(from, fb, { quoted: msg });
+        } else {
+          await reply(teks);
+        }
+      } catch (e2) {
+        console.error('[MENU] fallback gagal:', e2.message);
+        await reply(teks);
+      }
     }
   },
 };

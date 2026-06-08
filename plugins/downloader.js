@@ -58,7 +58,8 @@ module.exports = {
   ],
   desc: 'Downloader TikTok / IG / Facebook / YouTube / Spotify',
   run: async (ctx) => {
-    const { conn, from, msg, command, text, reply, db, sender, isOwner } = ctx;
+    const { conn, from, msg, command, text, reply, db, sender, isOwner, fakeOfficial } = ctx;
+    const fq = fakeOfficial || msg; // fake reply official (centang biru)
 
     // ---- Gate limit (pre-check). Limit BARU dipotong saat sukses. ----
     if (!isOwner && !db.hasLimit(sender)) {
@@ -105,7 +106,7 @@ module.exports = {
           await conn.sendMessage(
             from,
             { video: { url: videoUrl }, caption: `🎬 *TikTok*\n${title}`.trim() },
-            { quoted: msg }
+            { quoted: fq }
           );
           chargeLimit();
           break;
@@ -132,7 +133,7 @@ module.exports = {
               await conn.sendMessage(
                 from,
                 isVideo ? { video: { url } } : { image: { url } },
-                { quoted: msg }
+                { quoted: fq }
               );
               sent += 1;
             } catch (_) {
@@ -158,7 +159,7 @@ module.exports = {
           await conn.sendMessage(
             from,
             { video: { url }, caption: '🎬 *Facebook Video*' },
-            { quoted: msg }
+            { quoted: fq }
           );
           chargeLimit();
           break;
@@ -222,13 +223,13 @@ module.exports = {
             await conn.sendMessage(
               from,
               { audio: { url: mediaUrl }, mimetype: 'audio/mpeg', fileName: `${title}.mp3` },
-              { quoted: msg }
+              { quoted: fq }
             );
           } else {
             await conn.sendMessage(
               from,
               { video: { url: mediaUrl }, caption: `🎬 *${title}*` },
-              { quoted: msg }
+              { quoted: fq }
             );
           }
           chargeLimit();
@@ -281,7 +282,7 @@ module.exports = {
               mimetype: 'audio/mpeg',
               fileName: `${r.name || 'spotify'}.mp3`,
             },
-            { quoted: msg }
+            { quoted: fq }
           );
           chargeLimit();
           break;
