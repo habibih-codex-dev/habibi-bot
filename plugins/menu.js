@@ -152,11 +152,36 @@ module.exports = {
   command: ['menu', 'help', 'start', 'allmenu'],
   desc: 'Menampilkan menu utama',
   run: async (ctx) => {
-    const { conn, from, msg, reply, sender, db } = ctx;
+    const { conn, from, msg, reply, sender, db, usedPrefix } = ctx;
     const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
     const teks = buildMenuText(ctx, u);
+    const p = usedPrefix;
 
-    // Kirim sebagai media (image/video) + caption. Jika media gagal -> teks murni.
+    // ---- Coba kirim sebagai PESAN INTERAKTIF (habibi-cloud-baileys) ----
+    // API baru: conn.sendButton(jid, { text, footer, buttons:[...] })
+    if (typeof conn.sendButton === 'function') {
+      try {
+        const ownerNum = (config.owner && config.owner[0]) || '';
+        await conn.sendButton(from, {
+          text: teks,
+          footer: `${config.botName} • ${config.cloudName}`,
+          buttons: [
+            { type: 'reply', text: '📋 All Menu', id: `${p}allmenu` },
+            { type: 'reply', text: '🛒 Sewa Bot', id: `${p}sewabot` },
+            { type: 'reply', text: '👤 Owner', id: `${p}owner` },
+            ...(ownerNum
+              ? [{ type: 'url', text: '🌐 Hubungi Owner', url: `https://wa.me/${ownerNum}` }]
+              : []),
+          ],
+        });
+        return;
+      } catch (e) {
+        console.error('[MENU] sendButton gagal, fallback media/teks:', e.message);
+        // lanjut ke fallback di bawah
+      }
+    }
+
+    // ---- FALLBACK: media (image/video) + caption, atau teks murni ----
     try {
       const media = await getMenuMedia(config.thumbMenu);
       if (media) {
@@ -166,7 +191,6 @@ module.exports = {
             : { image: media.buffer, caption: teks };
         await conn.sendMessage(from, content, { quoted: msg });
       } else {
-        // Tidak ada media / link mati -> tetap tampilkan list menu sebagai teks
         await reply(teks);
       }
     } catch (e) {
