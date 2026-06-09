@@ -152,26 +152,77 @@ module.exports = {
   command: ['menu', 'help', 'start', 'allmenu'],
   desc: 'Menampilkan menu utama',
   run: async (ctx) => {
-    const { conn, from, msg, reply, sender, db } = ctx;
+    const { conn, from, msg, reply, sender, db, command, usedPrefix } = ctx;
     const u = ctx.user || db.getUser(sender) || { premium: false, limit: 0, saldo: 0 };
     const teks = buildMenuText(ctx, u);
+    const p = usedPrefix;
 
-    // Kirim sebagai media (image/video) + caption. Jika media gagal -> teks murni.
+    // ============================================================
+    // .allmenu (atau tombol "All Menu") -> SELALU tampilkan daftar
+    // lengkap sebagai media+caption / teks (bukan interactive).
+    // ============================================================
+    const wantFullList = command === 'allmenu' || command === 'help';
+    if (wantFullList || typeof conn.sendButton !== 'function') {
+      return sendFullMenu(ctx, teks);
+    }
+
+    // ============================================================
+    // .menu -> PESAN INTERAKTIF (native flow button).
+    //
+    // PENTING: body interactive dibuat RINGKAS. Native flow dengan
+    // body teks sangat panjang (>1000 char) sering DIBUANG server WA
+    // sehingga tombol "tidak muncul sama sekali". Daftar fitur lengkap
+    // dipindah ke tombol "All Menu" (-> .allmenu).
+    // ============================================================
+    const status = u.premium ? '👑 Premium (Unlimited)' : '🆓 Free';
+    const limitText = u.premium ? '∞ Unlimited' : formatNumber(u.limit);
+    const shortText =
+      `╭───「 *${config.botName}* 」\n` +
+      `│ 👤 Owner : ${config.ownerName}\n` +
+      `│ 🛒 ${config.storeName} & ${config.cloudName}\n` +
+      `│ 🎫 Status : ${status}\n` +
+      `│ 🔋 Limit : ${limitText}\n` +
+      `│ 💰 Saldo : Rp${formatNumber(u.saldo || 0)}\n` +
+      `╰───────────────\n\n` +
+      `Tekan *All Menu* untuk melihat semua fitur, atau ketik *${p}allmenu*.`;
+
     try {
-      const media = await getMenuMedia(config.thumbMenu);
-      if (media) {
-        const content =
-          media.type === 'video'
-            ? { video: media.buffer, caption: teks, gifPlayback: false }
-            : { image: media.buffer, caption: teks };
-        await conn.sendMessage(from, content, { quoted: msg });
-      } else {
-        // Tidak ada media / link mati -> tetap tampilkan list menu sebagai teks
-        await reply(teks);
-      }
+      const ownerNum = (config.owner && config.owner[0]) || '';
+      await conn.sendButton(from, {
+        text: shortText,
+        footer: `${config.botName} • ${config.cloudName}`,
+        buttons: [
+          { type: 'reply', text: '📋 All Menu', id: `${p}allmenu` },
+          { type: 'reply', text: '🛒 Sewa Bot', id: `${p}sewabot` },
+          { type: 'reply', text: '👤 Owner', id: `${p}owner` },
+          ...(ownerNum
+            ? [{ type: 'url', text: '🌐 Hubungi Owner', url: `https://wa.me/${ownerNum}` }]
+            : []),
+        ],
+      });
     } catch (e) {
-      console.error('[MENU] gagal kirim, fallback teks:', e.message);
-      await reply(teks);
+      console.error('[MENU] sendButton gagal, fallback media/teks:', e.message);
+      await sendFullMenu(ctx, teks);
     }
   },
 };
+
+/** Kirim daftar menu lengkap sebagai media+caption, atau teks murni. */
+async function sendFullMenu(ctx, teks) {
+  const { conn, from, msg, reply } = ctx;
+  try {
+    const media = await getMenuMedia(config.thumbMenu);
+    if (media) {
+      const content =
+        media.type === 'video'
+          ? { video: media.buffer, caption: teks, gifPlayback: false }
+          : { image: media.buffer, caption: teks };
+      await conn.sendMessage(from, content, { quoted: msg });
+    } else {
+      await reply(teks);
+    }
+  } catch (e) {
+    console.error('[MENU] gagal kirim, fallback teks:', e.message);
+    await reply(teks);
+  }
+}

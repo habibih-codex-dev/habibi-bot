@@ -36,7 +36,7 @@ const config = {
   // Kosongkan ('') jika ingin menu tampil sebagai teks biasa.
   // GANTI dengan link media milikmu sendiri (catbox/telegra.ph) bila perlu.
   // Jika link mati/404, menu tetap tampil sebagai teks (sudah ditangani di menu.js).
-  thumbMenu: 'https://files.catbox.moe/k4w3qy.jpg',
+  thumbMenu: 'https://files.catbox.moe/1p0ytd.mp4',
 
   // ====================== LIMIT & PREMIUM ======================
   // Limit harian default untuk user biasa
